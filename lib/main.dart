@@ -8,8 +8,9 @@ import 'package:share_plus/share_plus.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:animated_widgets/animated_widgets.dart';
 import 'reservation_page.dart'; 
-
-
+import 'package:shared_preferences/shared_preferences.dart';
+import 'favorites_manager.dart';
+import 'favorites_page.dart';
 
 void main() => runApp(MyApp());
 
@@ -37,6 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
     HomePage(),
     MenuPage(),
     ContactPage(),
+    FavoritesPage(),
   ];
 
   void _onSelectItem(int index) {
@@ -48,31 +50,36 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text("Restaurant Menu")),
-      drawer: Drawer(
-        child: ListView(
-          children: [
-            DrawerHeader(
-              decoration: BoxDecoration(color: Colors.teal),
-              child: Text('Navigation', style: TextStyle(color: Colors.white, fontSize: 24)),
-            ),
-            ListTile(
-              title: Text("Home"),
-              leading: Icon(Icons.home),
-              onTap: () => _onSelectItem(0),
-            ),
-            ListTile(
-              title: Text("Menu"),
-              leading: Icon(Icons.restaurant_menu),
-              onTap: () => _onSelectItem(1),
-            ),
-            ListTile(
-              title: Text("Contact / About"),
-              leading: Icon(Icons.contact_mail),
-              onTap: () => _onSelectItem(2),
-            ),
-          ],
+        drawer: Drawer(
+          child: ListView(
+            children: [
+              DrawerHeader(
+                decoration: BoxDecoration(color: Colors.teal),
+                child: Text('Navigation', style: TextStyle(color: Colors.white, fontSize: 24)),
+              ),
+              ListTile(
+                title: Text("Home"),
+                leading: Icon(Icons.home),
+                onTap: () => _onSelectItem(0),
+              ),
+              ListTile(
+                title: Text("Menu"),
+                leading: Icon(Icons.restaurant_menu),
+                onTap: () => _onSelectItem(1),
+              ),
+              ListTile( // Add this new ListTile
+                title: Text("Favorites"),
+                leading: Icon(Icons.favorite),
+                onTap: () => _onSelectItem(3),
+              ),
+              ListTile(
+                title: Text("Contact / About"),
+                leading: Icon(Icons.contact_mail),
+                onTap: () => _onSelectItem(2),
+              ),
+            ],
+          ),
         ),
-      ),
       body: _pages[_selectedDrawerIndex],
     );
   }
@@ -308,30 +315,31 @@ class MenuCategory extends StatefulWidget {
 
 class _MenuCategoryState extends State<MenuCategory> with SingleTickerProviderStateMixin {
   final List<Map<String, dynamic>> sampleDishes = [
-    {
-      'name': 'Grilled Chicken',
-      'description': 'Juicy grilled chicken served with fresh veggies and a side of rice.',
-      'price': '20.00',
-      'image': 'assets/images/grilled_chicken.png',
-      'likes': 20,
-      'dislikes': 2,
-      'comments': ['Delicious!', 'Too spicy.'],
-      'liked': false,
-      'disliked': false,
-    },
-    {
-      'name': 'Chocolate Cake',
-      'description': 'Rich and creamy chocolate cake topped with ganache.',
-      'price': '6.50',
-      'image': 'assets/images/chocolate_cake.png',
-      'likes': 15,
-      'dislikes': 0,
-      'comments': ['Yummy!', 'Perfect dessert.'],
-      'liked': false,
-      'disliked': false,
-    },
-  ];
-
+  {
+    'name': 'Grilled Chicken',
+    'description': 'Juicy grilled chicken served with fresh veggies and a side of rice.',
+    'price': '20.00',
+    'image': 'assets/images/grilled_chicken.png',
+    'likes': 20,
+    'dislikes': 2,
+    'comments': ['Delicious!', 'Too spicy.'],
+    'liked': false,
+    'disliked': false,
+    'isFavorite': false, 
+  },
+  {
+    'name': 'Chocolate Cake',
+    'description': 'Rich and creamy chocolate cake topped with ganache.',
+    'price': '6.50',
+    'image': 'assets/images/chocolate_cake.png',
+    'likes': 15,
+    'dislikes': 0,
+    'comments': ['Yummy!', 'Perfect dessert.'],
+    'liked': false,
+    'disliked': false,
+    'isFavorite': false, 
+  },
+];
   final Map<int, TextEditingController> _commentControllers = {};
 
   @override
@@ -391,41 +399,61 @@ class _MenuCategoryState extends State<MenuCategory> with SingleTickerProviderSt
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: Container(
-                    decoration: BoxDecoration(boxShadow: [
-                      BoxShadow(
-                        color: Colors.orange.withOpacity(0.3),
-                        offset: Offset(0, 6),
-                        blurRadius: 10,
-                      ),
-                    ]),
-                    child: Image.network(
-                      dish['image'],
-                      height: 400,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      loadingBuilder: (context, child, progress) {
-                        if (progress == null) return child;
-                        return Container(
-                          height: 400,
-                          child: Center(
-                            child: CircularProgressIndicator(
-                              value: progress.expectedTotalBytes != null
-                                  ? progress.cumulativeBytesLoaded / (progress.expectedTotalBytes ?? 1)
-                                  : null,
-                            ),
+                Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        decoration: BoxDecoration(boxShadow: [
+                          BoxShadow(
+                            color: Colors.orange.withOpacity(0.3),
+                            offset: Offset(0, 6),
+                            blurRadius: 10,
                           ),
-                        );
-                      },
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        height: 200,
-                        color: Colors.grey.shade200,
-                        child: Icon(Icons.broken_image, size: 80, color: Colors.grey.shade400),
+                        ]),
+                        child: Image.network(
+                          dish['image'],
+                          height: 400,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          loadingBuilder: (context, child, progress) {
+                            if (progress == null) return child;
+                            return Container(
+                              height: 400,
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  value: progress.expectedTotalBytes != null
+                                      ? progress.cumulativeBytesLoaded / (progress.expectedTotalBytes ?? 1)
+                                      : null,
+                                ),
+                              ),
+                            );
+                          },
+                          errorBuilder: (context, error, stackTrace) => Container(
+                            height: 200,
+                            color: Colors.grey.shade200,
+                            child: Icon(Icons.broken_image, size: 80, color: Colors.grey.shade400),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                    Positioned(
+                      top: 16,
+                      right: 16,
+                      child: IconButton(
+                        icon: Icon(
+                          dish['isFavorite'] == true 
+                              ? Icons.favorite 
+                              : Icons.favorite_border,
+                          color: dish['isFavorite'] == true 
+                              ? Colors.red 
+                              : Colors.white,
+                          size: 30,
+                        ),
+                        onPressed: () => _toggleFavorite(index),
+                      ),
+                    ),
+                  ],
                 ),
                 SizedBox(height: 16),
                 Text(
@@ -546,7 +574,38 @@ class _MenuCategoryState extends State<MenuCategory> with SingleTickerProviderSt
       },
     );
   }
+  // for favorite page 
+
+  @override
+  void initState() {
+  super.initState();
+  _loadFavoritesStatus();
 }
+
+Future<void> _loadFavoritesStatus() async {
+  for (var dish in sampleDishes) {
+    dish['isFavorite'] = await FavoritesManager.isFavorite(dish['name']);
+  }
+  if (mounted) setState(() {});
+}
+
+void _toggleFavorite(int index) async {
+  final dish = sampleDishes[index];
+  final isCurrentlyFavorite = dish['isFavorite'] ?? false;
+  
+  setState(() {
+    dish['isFavorite'] = !isCurrentlyFavorite;
+  });
+
+  if (!isCurrentlyFavorite) {
+    await FavoritesManager.addFavorite(dish['name']);
+  } else {
+    await FavoritesManager.removeFavorite(dish['name']);
+  }
+}
+
+}
+
 
 
 // NOTE: Localization is skeleton only here, just for demonstration
